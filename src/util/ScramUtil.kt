@@ -28,7 +28,12 @@ class ScramUtil {
                 getServerKey(saltedPwd), iterations
             )
 
-            logger.debug("Return scram credentials: {}", scramCredentials)
+            logger.debug(
+                "Return scram credentials: salt: {}, storedKey: {}, i: {}",
+                toBase64(scramCredentials.salt), toBase64(scramCredentials.storedKey),
+                scramCredentials.iterations
+            )
+
             return scramCredentials
         }
 
@@ -46,6 +51,10 @@ class ScramUtil {
 
         private fun getStoredKey(clientKey: ByteArray): ByteArray {
             return hash(clientKey)
+        }
+
+        fun getStoredKey(clientSignature: ByteArray, clientProof: ByteArray): ByteArray {
+            return hash(xor(clientSignature, clientProof))
         }
 
         private fun hash(byteArray: ByteArray): ByteArray {
@@ -77,7 +86,7 @@ class ScramUtil {
             return result
         }
 
-        private fun xor(a: ByteArray, b: ByteArray): ByteArray? {
+        private fun xor(a: ByteArray, b: ByteArray): ByteArray {
             if (a.size != b.size) {
                 throw IllegalArgumentException("Argument arrays must be of the same length")
             }
@@ -95,9 +104,60 @@ class ScramUtil {
             return mac.digest(byteArray)
         }
 
-
         fun generateSalt(): ByteArray {
             return rnd.nextBytes(16)
+        }
+
+        fun getClientFirstMessage(username: String, clientNonce: String): String {
+            val result = String.format("n=%s,r=%s", username, clientNonce)
+
+            logger.debug("getClientFirstMessage: {}", result)
+            return result
+        }
+
+        fun getServerFirstMessage(nonce: String, salt: String, i: Int): String {
+            val result = String.format("r=%s,s=%s,i=%d", nonce, salt, i)
+
+            logger.debug("getServerFirstMessage: {}", result)
+            return result
+        }
+
+        fun getClientFinalMessageWithoutProof(nonce: String): String {
+            val result = String.format("r=%s", nonce)
+
+            logger.debug("getClientFinalMessageWithoutProof: {}", result)
+            return result
+        }
+
+        fun getAuthMessage(
+            clientFirstMessage: String,
+            serverFirstMessage: String,
+            clientFinalMessageWithoutProof: String
+        ): ByteArray {
+            val result = listOf(clientFirstMessage, serverFirstMessage, clientFinalMessageWithoutProof)
+                .joinToString(",")
+
+            logger.debug("getAuthMessage: {}", result)
+            return result.toByteArray()
+        }
+
+        fun getClientProof(password: String, authMessage: ByteArray, salt: ByteArray, i: Int): ByteArray {
+            val saltedPwd = getSalted(password, salt, i)
+            val clientKey = getClientKey(saltedPwd)
+            val storedKey = getStoredKey(clientKey)
+            val clientSignature = clientSignature(storedKey, authMessage)
+
+            logger.debug(
+                "Return scram credentials: salt: {}, storedKey: {}, i: {}, clientSignature: {}",
+                toBase64(salt), toBase64(storedKey),
+                i, toBase64(clientSignature)
+            )
+
+            return xor(clientKey, clientSignature)
+        }
+
+        fun clientSignature(storedKey: ByteArray, authMessage: ByteArray): ByteArray {
+            return hmac(storedKey, authMessage)
         }
     }
 }
