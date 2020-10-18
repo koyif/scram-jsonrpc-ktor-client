@@ -1,0 +1,13 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.thymeleaf.org ">
+<body>
+<center>
+    <h2 th:if="${result.result} != null" th:text="'Result: ' + ${result.result}"></h2>
+    <h2 th:if="${result.error} != null" th:text="'Error: ' + ${result.error.message}"></h2>
+    <a href="/login">Login</a><br />
+    <a href="/registration">Registration</a><br />
+
+</center>
+</body>
+</html>
